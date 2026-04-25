@@ -5,4 +5,4 @@
 -- TODO: перед запуском подставьте валидный order_id в path.
 
 wrk.method = "GET"
-wrk.path = "/api/cache-demo/orders/{{order_id}}/card?use_cache=true"
+wrk.path = "/api/cache-demo/orders/{{3931dee6-e8a9-434e-842f-abb72f515088}}/card?use_cache=true"

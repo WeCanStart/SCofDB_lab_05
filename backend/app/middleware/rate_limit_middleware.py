@@ -2,8 +2,12 @@
 
 from typing import Callable
 
-from fastapi import Request, Response
+from fastapi import Request, Response, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
+
+from app.infrastructure.redis_client import get_redis
+from app.infrastructure.cache_keys import payment_rate_limit_key
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -19,6 +23,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.limit_per_window = limit_per_window
         self.window_seconds = window_seconds
+        self._redis = get_redis()
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """
@@ -40,4 +45,48 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Заглушка: ограничение пока не применяется.
         # TODO: заменить на полноценную реализацию.
-        return await call_next(request)
+        path = request.url.path
+
+        is_payment_endpoint = (
+            path.startswith("/api/orders/") and path.endswith("/pay")
+        ) or (
+            path == "/api/payments/retry-demo"
+        )
+        if not is_payment_endpoint:
+            return await call_next(request)
+
+        subject = self._get_subject(request)
+        key = payment_rate_limit_key(subject)
+
+        current = await self._redis.incr(key)
+
+        if current == 1:
+            await self._redis.expire(key, self.window_seconds)
+
+        remaining = max(0, self.limit_per_window - current)
+
+        if current > self.limit_per_window:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too Many Requests"},
+                headers={
+                    "X-RateLimit-Limit": str(self.limit_per_window),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(self.window_seconds),
+                },
+            )
+
+        response = await call_next(request)
+
+        response.headers["X-RateLimit-Limit"] = str(self.limit_per_window)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+
+        return response
+
+    def _get_subject(self, request: Request) -> str:
+        user_id = request.headers.get("x-user-id")
+        if user_id:
+            return user_id
+
+        client_ip = request.client.host if request.client else "unknown"
+        return client_ip

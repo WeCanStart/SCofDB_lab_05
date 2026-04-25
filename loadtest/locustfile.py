@@ -18,4 +18,4 @@ class CacheUser(HttpUser):
     @task(2)
     def get_order_card(self):
         # TODO: заменить order_id на существующий
-        self.client.get("/api/cache-demo/orders/{{order_id}}/card?use_cache=true")
+        self.client.get("/api/cache-demo/orders/{{3931dee6-e8a9-434e-842f-abb72f515088}}/card?use_cache=true")

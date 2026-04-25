@@ -21,9 +21,19 @@
 --     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 --     processed_at TIMESTAMP
 -- );
---
+
+CREATE TABLE IF NOT EXISTS cache_invalidation_log (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    event_type VARCHAR(64) NOT NULL,
+    entity_id UUID NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- CREATE INDEX idx_cache_events_unprocessed
 --   ON cache_invalidation_events (processed, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_cache_invalidation_log_entity
+    ON cache_invalidation_log (entity_id);
 
 -- TODO:
 -- Опишите в отчёте выбранный вариант:
